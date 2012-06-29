@@ -1,0 +1,115 @@
+Components.utils.import("resource:///modules/devtools/gcli.jsm");
+
+gcli.addCommand(
+{
+  name: 'reload',
+  description: 'Show a message',
+  params: [
+    {
+      name: 'what',
+      type: 'string',
+      description: 'What to reload: scripts, stylesheets, media XXX Add some more.',
+    },
+    {
+      name: "when",
+      type: "string",
+      defaultValue: "",
+      description: "The period at which the thing is reloaded."
+    }
+  ],
+  returnType: "string",
+  exec: function(args, context) {
+    let w = gBrowser.contentWindow;
+    let c = w.document;
+    timers = {};
+    
+    function onAll(s, f) {
+      let elements = c.querySelectorAll(s);
+      elements = Array.prototype.slice.call(elements, 0);
+      elements.forEach(f);
+    }
+    
+    function reloadAllThings(what) {
+      onAll(what, function(e) {
+          let old = e.src.split("#")[0] + "#" + Math.random();
+          e.src = "";
+          e.src = old;
+      });
+    }
+    
+    // return a number of ms from a number and a unit.
+    function parseTimeString(str) {
+      let digit = /(\d+)/i.exec(str);
+      let unit = /([a-z]+)/i.exec(str);
+      let factor = {
+        min:60000,
+        h:3600000,
+        sec:1000,
+        s:1000,
+        day:3600000 * 24
+      }
+      if(factor[unit[0]])
+        return parseInt(digit[0], 10) * factor[unit[0]];
+      else
+        return 0;
+    }
+    
+    // parseTimeString("1min") == 60000;
+    // parseTimeString("1h") == 3600000;
+    
+    // Repeat the funciton at interval t
+    function handleTime(what, f, t) {
+        if (t == "") {
+          f();
+          return;
+        }
+        if (t == "stop") {
+          clearInterval(timers[what]);
+          return;
+        }
+        let ms = parseTimeString(t);
+        if (ms != 0) {
+          timers[what] = setInterval(f, ms);
+        }
+    }
+    commands = {
+      "page" : function (t) {
+        handleTime("page", w.location.reload.bind(null), t);
+        return "page";
+      },
+      "image" : function(t) {
+        handleTime("image", reloadAllThings.bind(null, "img"), t);
+        return "images";
+      },
+      "iframe" : function(t) {
+        reloadAllThings("iframe");
+        return "iframes";
+      },
+      
+      // Reload the video and audio.
+      "media" : function(t) {
+        reloadAllThings("video, audio");
+        return "media elements";
+      },
+      // Reload the css link tags
+      "css" : function(t) {
+        onAll("link[rel=stylesheet]", function(e) {
+            var ebck = e.cloneNode();
+            var p = e.parentNode;
+            p.removeChild(e);
+            alert(ebck.outerHTML);
+            ebck.href += "#" + Math.random();
+            p.appendChild(ebck);
+        });
+        return "stylesheets";
+      }
+    };
+    if (commands[args.what]) {
+      let message = commands[args.what](args.when);
+      return "Hop, reloading the XXX!".replace("XXX", message);
+    }
+  }
+}
+
+);
+
